@@ -1,88 +1,80 @@
 #include <iostream>
 #include <climits>
+#include <cstring>
 using namespace std;
-const int MAX_N = 10;
-int N, adj[MAX_N][MAX_N];             // Distance matrix
-int final_path[MAX_N + 1];             // Stores the final path
-bool visited[MAX_N];                   // Tracks visited cities
-int final_res = INT_MAX;               // Stores minimum cost
-// Copies the current path to the final path
-void copyToFinal(int path[]) {
-    for (int i = 0; i < N; i++) 
-        final_path[i] = path[i];
-    final_path[N] = path[0];
-}
-// Finds the minimum or second minimum edge weight for a given city
-int findMin(int i, bool excludeMin = false) {
-    int first = INT_MAX, second = INT_MAX;
-    for (int j = 0; j < N; j++) {
-        if (i == j) continue;
-        if (adj[i][j] <= first) { 
-            second = first; 
-            first = adj[i][j]; 
-        } else if (adj[i][j] < second) 
-            second = adj[i][j];
-    }
-    return excludeMin ? second : first;
-}
-// Recursive function to solve the TSP using branch and bound
-void TSPRec(int bound, int weight, int level, int path[]) {
-    if (level == N) { // All cities visited, complete cycle
-        if (adj[path[level - 1]][path[0]]) { // If there's an edge back to the start
-            int curr_res = weight + adj[path[level - 1]][path[0]];
-            if (curr_res < final_res) { // Update minimum result if better
-                copyToFinal(path);
-                final_res = curr_res;
-            }
+const int MAX_N = 10; // Maximum number of cities
+int finalPath[MAX_N + 1]; // Store final path
+bool visited[MAX_N]; // Track visited cities
+int minCost = INT_MAX; // To track the minimum cost
+void tsp(int costMatrix[MAX_N][MAX_N], int currentPos, int n, int count, int cost, int path[]) {
+    // Base case: If all cities have been visited
+    if (count == n && costMatrix[currentPos][0]) {
+        int totalCost = cost + costMatrix[currentPos][0]; // Include return cost to starting city
+        if (totalCost < minCost) {
+            minCost = totalCost;
+            // Copy the current path to the final path
+            for (int i = 0; i < n; i++)
+                finalPath[i] = path[i];
+            finalPath[n] = 0; // Complete the cycle
         }
         return;
     }
-    // Try visiting the next city
-    for (int i = 0; i < N; i++) {
-        if (!visited[i] && adj[path[level - 1]][i]) { // If city `i` is unvisited and reachable
-            int temp = bound;
-            int new_weight = weight + adj[path[level - 1]][i];
-            // Calculate the updated bound
-            bound -= ((level == 1 ? findMin(path[level - 1]) : findMin(path[level - 1], true)) + findMin(i)) / 2;
-            if (bound + new_weight < final_res) { // Proceed if promising
-                path[level] = i;
-                visited[i] = true;
-                TSPRec(bound, new_weight, level + 1, path);
+    // Try to go to every city
+    for (int i = 0; i < n; i++) {
+        if (!visited[i] && costMatrix[currentPos][i]) {
+            // Mark the city as visited
+            visited[i] = true;
+            path[count] = i;
+            // Calculate new cost with current move
+            int newCost = cost + costMatrix[currentPos][i];
+            // Calculate lower bound (this can be a simple heuristic, e.g., the minimum edge cost from currentPos)
+            int lowerBound = newCost; // Start with the cost incurred
+            for (int j = 0; j < n; j++) {
+                if (!visited[j]) {
+                    int minEdgeCost = INT_MAX;
+                    for (int k = 0; k < n; k++) {
+                        if (!visited[k] && costMatrix[j][k] < minEdgeCost) {
+                            minEdgeCost = costMatrix[j][k];
+                        }
+                    }
+                    lowerBound += minEdgeCost; // Add the minimum cost of unvisited cities
+                }
             }
-            // Reset bound and mark city `i` as unvisited for the next iteration
-            bound = temp;
+            // Prune branches if lower bound exceeds current minimum cost
+            if (lowerBound < minCost) {
+                tsp(costMatrix, i, n, count + 1, newCost, path);
+            }
+            // Backtrack: Unmark the city
             visited[i] = false;
         }
     }
 }
-// Sets up and initiates the TSP recursive function
-void TSP() {
-    int path[MAX_N + 1] = {0}; // Starting path
-    int bound = 0;
-    // Initialize visited cities and calculate initial lower bound
-    fill(visited, visited + N, false);
-    for (int i = 0; i < N; i++) 
-        bound += (findMin(i) + findMin(i, true));
-    bound = (bound + 1) / 2;
-    visited[0] = true; // Start from the first city
-    TSPRec(bound, 0, 1, path);
-}
 int main() {
-    cout << "Enter number of cities (max " << MAX_N << "): ";
-    cin >> N;
-    if (N > MAX_N) {
-        cout << "Error: Maximum cities is " << MAX_N << ".\n";
+    int n;
+    cout << "Enter the number of cities: ";
+    cin >> n;
+    if (n > MAX_N) {
+        cout << "Number of cities exceeds the maximum allowed (" << MAX_N << ")." << endl;
         return 1;
     }
-    cout << "Enter the distance matrix (0 for diagonal elements):\n";
-    for (int i = 0; i < N; i++) 
-        for (int j = 0; j < N; j++) 
-            cin >> adj[i][j];
-    TSP();
-    // Output the result
-    cout << "Minimum cost: " << final_res << "\nPath Taken: ";
-    for (int i = 0; i <= N; i++) 
-        cout << final_path[i] << " ";
+    int costMatrix[MAX_N][MAX_N];
+    cout << "Enter the cost matrix"<< endl;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            cin >> costMatrix[i][j];
+        }
+    }
+    // Initialize the visited array and path
+    memset(visited, false, sizeof(visited));
+    visited[0] = true; // Start from the first city
+    int path[MAX_N];
+    path[0] = 0; // Starting city is 0
+    // Start TSP from the first city
+    tsp(costMatrix, 0, n, 1, 0, path);
+    cout << "Minimum cost: " << minCost << endl;
+    cout << "Path: ";
+    for (int i = 0; i <= n; i++)
+        cout << finalPath[i] << " ";
     cout << endl;
     return 0;
 }
